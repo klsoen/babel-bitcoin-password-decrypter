@@ -1,15 +1,16 @@
 [project]
 name = "babel-bitcoin-password-decrypter"
 version = "0.1.0"
-description = ""
+description = "Convert BIP39 seed phrases to memorable, pronounceable babel strings"
 authors = [
     {name = "Abdul Khaliq",email = "thedjawking@gmail.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = [
-]
+dependencies = []
 
+[project.scripts]
+babel-btc = "babel_bitcoin_password_decrypter.cli:main"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
