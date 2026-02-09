@@ -8,7 +8,7 @@ Flow:
 from __future__ import annotations
 
 from .bip39 import mnemonic_to_entropy, entropy_to_mnemonic
-from .syllables import bytes_to_syllables, syllables_to_bytes
+from .syllables import bytes_to_syllables, syllables_to_bytes, bytes_to_syllable_list
 from .babel_lib import search_text, coordinates_to_url
 
 
@@ -63,3 +63,34 @@ def format_babel_string(babel: str, chunk_size: int = 4) -> str:
     """
     chunks = [babel[i:i + chunk_size] for i in range(0, len(babel), chunk_size)]
     return '-'.join(chunks)
+
+
+def format_as_sentences(mnemonic: str) -> str:
+    """
+    Format a seed phrase as memorable pseudo-sentences.
+
+    Groups 16 syllables into 4 "sentences" of 4 syllables each,
+    with 2 syllables per "word".
+
+    Example output:
+        "Augai zofug. Airoru rpaip. Ifalma ulpor. Erdex estal."
+    """
+    entropy = mnemonic_to_entropy(mnemonic)
+    syllables = bytes_to_syllable_list(entropy)
+
+    # Group into words (2 syllables each) and sentences (2 words each)
+    sentences = []
+    for i in range(0, len(syllables), 4):
+        chunk = syllables[i:i + 4]
+        if len(chunk) >= 4:
+            word1 = chunk[0] + chunk[1]
+            word2 = chunk[2] + chunk[3]
+            sentence = f"{word1.capitalize()} {word2}."
+        elif len(chunk) >= 2:
+            word1 = chunk[0] + chunk[1] if len(chunk) > 1 else chunk[0]
+            sentence = f"{word1.capitalize()}."
+        else:
+            sentence = f"{chunk[0].capitalize()}."
+        sentences.append(sentence)
+
+    return " ".join(sentences)

@@ -87,6 +87,11 @@ def bytes_to_syllables(data: bytes) -> str:
     return ''.join(SYLLABLE_TABLE[b] for b in data)
 
 
+def bytes_to_syllable_list(data: bytes) -> List[str]:
+    """Convert bytes to a list of syllables."""
+    return [SYLLABLE_TABLE[b] for b in data]
+
+
 def syllables_to_bytes(syllable_string: str) -> bytes:
     """Convert a syllable string back to bytes."""
     result = []

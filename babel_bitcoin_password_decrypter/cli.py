@@ -5,7 +5,7 @@ Command-line interface for babel-bitcoin-password-decrypter.
 import argparse
 import sys
 
-from .converter import seed_to_babel, babel_to_seed, babel_to_url, seed_to_url, format_babel_string
+from .converter import seed_to_babel, babel_to_seed, babel_to_url, seed_to_url, format_babel_string, format_as_sentences
 
 
 def main():
@@ -45,6 +45,11 @@ Examples:
         help='Format output with hyphens for readability'
     )
     encode_parser.add_argument(
+        '--sentences', '-s',
+        action='store_true',
+        help='Format as memorable pseudo-sentences'
+    )
+    encode_parser.add_argument(
         '--url', '-u',
         action='store_true',
         help='Also output the Library of Babel URL'
@@ -69,19 +74,22 @@ Examples:
 
     try:
         if args.command == 'encode':
-            babel = seed_to_babel(args.seed_phrase)
-            if args.format:
-                print(format_babel_string(babel))
+            if args.sentences:
+                print(format_as_sentences(args.seed_phrase))
             else:
-                print(babel)
+                babel = seed_to_babel(args.seed_phrase)
+                if args.format:
+                    print(format_babel_string(babel))
+                else:
+                    print(babel)
 
             if args.url:
                 url = seed_to_url(args.seed_phrase)
                 print(f"\nLibrary of Babel URL:\n{url}")
 
         elif args.command == 'decode':
-            # Remove any formatting (hyphens, spaces)
-            clean_babel = args.babel_string.replace('-', '').replace(' ', '')
+            # Remove any formatting (hyphens, spaces, periods)
+            clean_babel = args.babel_string.replace('-', '').replace(' ', '').replace('.', '').lower()
 
             if args.seed:
                 seed = babel_to_seed(clean_babel)
