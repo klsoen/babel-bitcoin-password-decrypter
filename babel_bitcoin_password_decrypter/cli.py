@@ -8,7 +8,8 @@ import sys
 from .converter import (
     seed_to_babel, babel_to_seed, babel_to_url, seed_to_url,
     format_babel_string, format_as_sentences,
-    seed_to_story, story_to_seed, story_to_url
+    seed_to_story, story_to_seed, story_to_url,
+    story_to_page, seed_to_page, get_babel_location
 )
 
 
@@ -78,6 +79,11 @@ Examples:
         action='store_true',
         help='Output seed phrase instead of URL'
     )
+    decode_parser.add_argument(
+        '--page', '-p',
+        action='store_true',
+        help='Show Library of Babel page content (OFFLINE - no internet required)'
+    )
 
     args = parser.parse_args()
 
@@ -101,6 +107,19 @@ Examples:
                 if args.seed:
                     seed = story_to_seed(args.input)
                     print(seed)
+                elif args.page:
+                    # Show full Library of Babel page (offline)
+                    location = get_babel_location(args.input)
+                    print(f"Seed phrase: {location['seed_phrase']}")
+                    print(f"\nLibrary of Babel Location:")
+                    print(f"  Hex: {location['hex_name'][:50]}...")
+                    print(f"  Wall: {location['wall']}, Shelf: {location['shelf']}, Volume: {location['volume']}, Page: {location['page']}")
+                    print(f"\nURL: {location['url']}")
+                    print(f"\n{'='*80}")
+                    print("PAGE CONTENT (3200 characters, 80×40):")
+                    print('='*80)
+                    page_content = story_to_page(args.input)
+                    print(page_content)
                 else:
                     url = story_to_url(args.input)
                     print(url)
@@ -110,6 +129,15 @@ Examples:
                 if args.seed:
                     seed = babel_to_seed(clean_babel)
                     print(seed)
+                elif args.page:
+                    # Show full Library of Babel page (offline)
+                    seed = babel_to_seed(clean_babel)
+                    print(f"Seed phrase: {seed}")
+                    print(f"\n{'='*80}")
+                    print("PAGE CONTENT (3200 characters, 80×40):")
+                    print('='*80)
+                    page_content = seed_to_page(seed)
+                    print(page_content)
                 else:
                     url = babel_to_url(clean_babel)
                     print(url)

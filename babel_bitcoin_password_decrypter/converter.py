@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from .bip39 import mnemonic_to_entropy, entropy_to_mnemonic
 from .syllables import bytes_to_syllables, syllables_to_bytes, bytes_to_syllable_list
-from .babel_lib import search_text, coordinates_to_url
+from .babel_lib import search_text, coordinates_to_url, get_page_content, format_page
 from .story import entropy_to_story, story_to_entropy
 
 
@@ -79,6 +79,46 @@ def story_to_url(story: str) -> str:
     seed_phrase = story_to_seed(story)
     hex_name, wall, shelf, volume, page = search_text(seed_phrase)
     return coordinates_to_url(hex_name, wall, shelf, volume, page)
+
+
+def story_to_page(story: str) -> str:
+    """
+    Convert a story to the Library of Babel page content (OFFLINE).
+
+    Returns the formatted 3200-character page showing the seed phrase.
+    """
+    seed_phrase = story_to_seed(story)
+    hex_name, wall, shelf, volume, page = search_text(seed_phrase)
+    content = get_page_content(hex_name, wall, shelf, volume, page)
+    return format_page(content)
+
+
+def seed_to_page(mnemonic: str) -> str:
+    """
+    Convert a seed phrase to its Library of Babel page content (OFFLINE).
+    """
+    hex_name, wall, shelf, volume, page = search_text(mnemonic)
+    content = get_page_content(hex_name, wall, shelf, volume, page)
+    return format_page(content)
+
+
+def get_babel_location(story: str) -> dict:
+    """
+    Get the Library of Babel location info for a story (OFFLINE).
+
+    Returns dict with hex_name, wall, shelf, volume, page, url.
+    """
+    seed_phrase = story_to_seed(story)
+    hex_name, wall, shelf, volume, page = search_text(seed_phrase)
+    return {
+        'hex_name': hex_name,
+        'wall': wall,
+        'shelf': shelf,
+        'volume': volume,
+        'page': page,
+        'url': coordinates_to_url(hex_name, wall, shelf, volume, page),
+        'seed_phrase': seed_phrase
+    }
 
 
 def format_babel_string(babel: str, chunk_size: int = 4) -> str:
