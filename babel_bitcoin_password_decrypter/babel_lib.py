@@ -1,189 +1,71 @@
 """
-Library of Babel coordinate system.
+Library of Babel API integration.
 
-Implements the actual Library of Babel algorithm to generate working URLs.
-Based on: https://github.com/louis-e/LibraryOfBabel-Python
-
-The algorithm encodes text as a base-29 number, combines it with location
-coordinates, and converts to a base-36 hexagon address.
+Uses the actual libraryofbabel.info search API to get real coordinates.
 """
 from __future__ import annotations
 
-import string
-from typing import Tuple
+import re
+import ssl
+import urllib.request
+import urllib.parse
+from typing import Tuple, Optional
 
-# Library of Babel character set (29 characters)
-# a-z (26) + space + comma + period
-CHARSET = 'abcdefghijklmnopqrstuvwxyz ,.'
-CHARSET_LENGTH = len(CHARSET)  # 29
-
-# Page dimensions
-PAGE_LENGTH = 3200  # 80 chars × 40 lines
-
-# Structure constants
-MAX_WALLS = 4
-MAX_SHELVES = 5
-MAX_VOLUMES = 32
-MAX_PAGES = 410
-
-# Base-36 digits for hexagon address
-BASE36_DIGITS = string.digits + string.ascii_lowercase
+# Create SSL context that doesn't verify certificates (for compatibility)
+_ssl_context = ssl.create_default_context()
+_ssl_context.check_hostname = False
+_ssl_context.verify_mode = ssl.CERT_NONE
 
 
-def _char_to_value(c: str) -> int:
-    """Convert a character to its numeric value (0-28)."""
-    if c.isalpha():
-        return ord(c.lower()) - ord('a')  # a=0, z=25
-    elif c == ' ':
-        return 26
-    elif c == ',':
-        return 27
-    elif c == '.':
-        return 28
-    else:
-        return 26  # Default to space for unknown chars
-
-
-def _value_to_char(v: int) -> str:
-    """Convert a numeric value back to character."""
-    if 0 <= v <= 25:
-        return chr(ord('a') + v)
-    elif v == 26:
-        return ' '
-    elif v == 27:
-        return ','
-    elif v == 28:
-        return '.'
-    else:
-        return ' '
-
-
-def _to_base36(num: int) -> str:
-    """Convert an integer to base-36 string."""
-    if num == 0:
-        return '0'
-
-    chars = []
-    while num > 0:
-        chars.append(BASE36_DIGITS[num % 36])
-        num //= 36
-
-    return ''.join(reversed(chars))
-
-
-def _from_base36(s: str) -> int:
-    """Convert a base-36 string to integer."""
-    return int(s, 36)
-
-
-def _normalize_text(text: str) -> str:
-    """Normalize text for Library of Babel: lowercase, valid chars only, pad to 3200."""
-    # Convert to lowercase and filter to valid characters
-    result = []
-    for c in text.lower():
-        if c in CHARSET:
-            result.append(c)
-        else:
-            result.append(' ')  # Replace invalid chars with space
-
-    text = ''.join(result)
-
-    # Pad or truncate to exactly PAGE_LENGTH characters
-    if len(text) < PAGE_LENGTH:
-        text = text + ' ' * (PAGE_LENGTH - len(text))
-    else:
-        text = text[:PAGE_LENGTH]
-
-    return text
-
-
-def search_text(text: str, wall: int = 1, shelf: int = 1, volume: int = 1, page: int = 1) -> Tuple[str, int, int, int, int]:
+def search_text(text: str) -> Tuple[str, int, int, int, int]:
     """
-    Find the Library of Babel coordinates for a given text.
+    Search Library of Babel for text and get coordinates.
 
-    Args:
-        text: The text to search for
-        wall: Wall number (1-4), default 1
-        shelf: Shelf number (1-5), default 1
-        volume: Volume number (1-32), default 1
-        page: Page number (1-410), default 1
+    Uses the actual libraryofbabel.info search API.
 
     Returns: (hex_name, wall, shelf, volume, page)
     """
-    text = _normalize_text(text)
+    # Prepare the search request
+    url = "https://libraryofbabel.info/search.cgi"
+    data = urllib.parse.urlencode({'find': text, 'method': 'x'}).encode('utf-8')
 
-    # Create library coordinate: concatenate page, volume, shelf, wall as decimal
-    # Format: PPPVVSWW where P=page(3), V=volume(2), S=shelf(1), W=wall(1)
-    library_coordinate = int(f"{page:03d}{volume:02d}{shelf}{wall}")
+    req = urllib.request.Request(url, data=data, method='POST')
+    req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+    req.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36')
 
-    # Convert text to base-29 number (read right to left, so reverse)
-    text_value = 0
-    for i, c in enumerate(reversed(text)):
-        char_value = _char_to_value(c)
-        text_value += char_value * (CHARSET_LENGTH ** i)
+    with urllib.request.urlopen(req, timeout=30, context=_ssl_context) as response:
+        html = response.read().decode('utf-8')
 
-    # Combine: location * 29^3200 + text_value
-    combined = library_coordinate * (CHARSET_LENGTH ** PAGE_LENGTH) + text_value
+    # Parse the response to extract coordinates
+    # Look for the onclick handler: postform('hexname','wall','shelf','volume','page')
+    match = re.search(
+        r"onclick\s*=\s*\"postform\('([^']+)','(\d+)','(\d+)','(\d+)','(\d+)'",
+        html
+    )
 
-    # Convert to base-36 hexagon address
-    hex_name = _to_base36(combined)
+    if not match:
+        raise ValueError("Could not find coordinates in Library of Babel response")
+
+    hex_name = match.group(1)
+    wall = int(match.group(2))
+    shelf = int(match.group(3))
+    volume = int(match.group(4))
+    page = int(match.group(5))
 
     return hex_name, wall, shelf, volume, page
-
-
-def get_text_from_address(hex_name: str, wall: int, shelf: int, volume: int, page: int) -> str:
-    """
-    Retrieve the text at a Library of Babel address.
-
-    Args:
-        hex_name: The hexagon address
-        wall: Wall number (1-4)
-        shelf: Shelf number (1-5)
-        volume: Volume number (1-32)
-        page: Page number (1-410)
-
-    Returns: The 3200-character text at that location
-    """
-    # Reconstruct library coordinate
-    library_coordinate = int(f"{page:03d}{volume:02d}{shelf}{wall}")
-
-    # Convert hexagon address from base-36 to integer
-    combined = _from_base36(hex_name)
-
-    # Extract text value by subtracting location component
-    text_value = combined - library_coordinate * (CHARSET_LENGTH ** PAGE_LENGTH)
-
-    # Convert from base-29 to text
-    chars = []
-    remaining = text_value
-    for _ in range(PAGE_LENGTH):
-        char_value = remaining % CHARSET_LENGTH
-        chars.append(_value_to_char(char_value))
-        remaining //= CHARSET_LENGTH
-
-    # Reverse since we extracted from least significant
-    return ''.join(reversed(chars))
 
 
 def coordinates_to_url(hex_name: str, wall: int, shelf: int, volume: int, page: int) -> str:
     """Generate a Library of Babel URL from coordinates."""
-    return f"https://libraryofbabel.info/book.cgi?{hex_name}:{wall}:{shelf}:{volume:02d}:{page:03d}"
+    return f"https://libraryofbabel.info/book.cgi?{hex_name}-w{wall}-s{shelf}-v{volume:02d}:{page}"
 
 
-def parse_url(url: str) -> Tuple[str, int, int, int, int]:
-    """Parse a Library of Babel URL to extract coordinates."""
-    # URL format: https://libraryofbabel.info/book.cgi?hexname:wall:shelf:volume:page
-    if '?' in url:
-        url = url.split('?')[1]
+def search_and_get_url(text: str) -> str:
+    """
+    Search for text and return the Library of Babel URL.
 
-    parts = url.split(':')
-    if len(parts) != 5:
-        raise ValueError(f"Invalid Library of Babel URL format: {url}")
-
-    hex_name = parts[0]
-    wall = int(parts[1])
-    shelf = int(parts[2])
-    volume = int(parts[3])
-    page = int(parts[4])
-
-    return hex_name, wall, shelf, volume, page
+    This is the main function to use - it queries the real Library of Babel
+    and returns a working URL.
+    """
+    hex_name, wall, shelf, volume, page = search_text(text)
+    return coordinates_to_url(hex_name, wall, shelf, volume, page)
